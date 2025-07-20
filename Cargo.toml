@@ -1,15 +1,38 @@
 [package]
 name = "rust-osm"
 version = "0.1.0"
-authors = ["Marvin Dziedzina"]
+authors = ["Marvin Dziedzina <marvin.dziedzina@protonmail.com>"]
 categories = ["api-bindings", "asynchronous"]
-description = "A OSM api crate for editing and fetching OSM data"
+description = "A OSM API crate for editing and fetching OSM data"
 edition = "2024"
-keywords = ["osm", "api", "editing", "overpass", "OpenStreetMaps"]
+keywords = ["osm", "api", "editing", "overpass"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Marvin-Dziedzina/rust-osm"
+include = ["./LICENSE-MIT", "./LICENSE-APACHE"]
 
 [dependencies]
-reqwest = { version = "0.12.22" }
-serde = { version = "1.0.219" }
-serde_json = { version = "1.0.141" }
+reqwest = { version = "0.12.22", default-features = false, features = [
+    "charset",
+    "http2",
+    "system-proxy",
+] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.141"
+thiserror = "2.0.12"
+
+[features]
+default = ["coordinate_f64", "async", "reqwest/default"]
+native-tls-vendored = ["reqwest/native-tls-vendored"]
+rustls-tls = ["reqwest/rustls-tls"]
+
+coordinate_f32 = []
+# Recommended because of increased accuracy.
+coordinate_f64 = []
+
+# Enables all features of this crate.
+all = ["async", "blocking", "overpass"]
+
+async = []
+blocking = ["reqwest/blocking"]
+
+overpass = []
