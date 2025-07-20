@@ -1,4 +1,4 @@
-use std::ops::RangeInclusive;
+use std::ops::{Deref, RangeInclusive};
 
 use serde::{Deserialize, Serialize};
 
@@ -36,6 +36,14 @@ impl Longitude {
     #[inline]
     pub fn value(&self) -> CoordinateType {
         self.longitude
+    }
+}
+
+impl Deref for Longitude {
+    type Target = CoordinateType;
+
+    fn deref(&self) -> &Self::Target {
+        &self.longitude
     }
 }
 
@@ -80,8 +88,15 @@ mod longitude_test {
 
     #[test]
     fn value() {
-        let coordinate = Longitude::new(2.0).unwrap();
+        let longitude = Longitude::new(2.0).unwrap();
 
-        assert_eq!(2.0, coordinate.value());
+        assert_eq!(2.0, longitude.value());
+    }
+
+    #[test]
+    fn deref() {
+        let longitude = Longitude::new(2.0).unwrap();
+
+        assert_eq!(2.0, *longitude);
     }
 }

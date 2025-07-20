@@ -65,11 +65,29 @@ mod coordinate_test {
     use crate::coordinates::coordinate::Coordinate;
 
     #[test]
+    fn latitude() {
+        let coordinate = get_coordinate();
+
+        assert_eq!(1.0, coordinate.latitude().value());
+    }
+
+    #[test]
+    fn longitude() {
+        let coordinate = get_coordinate();
+
+        assert_eq!(2.0, coordinate.longitude().value());
+    }
+
+    #[test]
     fn tuple() {
-        let coordinate = Coordinate::from_value(1.0, 2.0).unwrap();
+        let coordinate = get_coordinate();
         let tuple = coordinate.tuple();
 
         assert_eq!(1.0, tuple.0);
         assert_eq!(2.0, tuple.1);
+    }
+
+    fn get_coordinate() -> Coordinate {
+        Coordinate::from_value(1.0, 2.0).unwrap()
     }
 }

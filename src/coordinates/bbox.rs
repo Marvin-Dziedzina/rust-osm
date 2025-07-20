@@ -51,3 +51,44 @@ impl BBox {
         )
     }
 }
+
+#[cfg(test)]
+mod bbox_test {
+    use crate::coordinates::{bbox::BBox, coordinate::Coordinate};
+
+    #[test]
+    fn south_west() {
+        let bbox = get_bbox();
+        let south_west = bbox.south_west();
+
+        assert_eq!(1.0, south_west.latitude().value());
+        assert_eq!(1.5, south_west.longitude().value());
+    }
+
+    #[test]
+    fn north_east() {
+        let bbox = get_bbox();
+        let north_east = bbox.north_east();
+
+        assert_eq!(2.0, north_east.latitude().value());
+        assert_eq!(2.5, north_east.longitude().value());
+    }
+
+    #[test]
+    fn tuple() {
+        let bbox = get_bbox();
+        let tuple = bbox.tuple();
+
+        assert_eq!(1.0, tuple.0);
+        assert_eq!(1.5, tuple.1);
+        assert_eq!(2.0, tuple.2);
+        assert_eq!(2.5, tuple.3);
+    }
+
+    fn get_bbox() -> BBox {
+        BBox::new(
+            Coordinate::from_value(1.0, 1.5).unwrap(),
+            Coordinate::from_value(2.0, 2.5).unwrap(),
+        )
+    }
+}
