@@ -1,3 +1,3 @@
 # RUST-OSM
 
-A OSM api crate for editing and fetching OSM data.
+A OSM API crate for editing and fetching OSM data.
