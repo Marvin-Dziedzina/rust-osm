@@ -1,5 +1,5 @@
 pub mod bbox;
-pub mod coordinate;
+pub mod coordinates;
 pub mod error;
 pub mod latitude;
 pub mod longitude;
