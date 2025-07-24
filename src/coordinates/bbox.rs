@@ -1,4 +1,7 @@
-use std::fmt::Display;
+use std::{
+    fmt::Display,
+    ops::{Div, Mul},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -6,8 +9,8 @@ use crate::coordinates::{self, CoordinateType, coordinates::Coordinates};
 
 /// A BBox or Bounding Box.
 ///
-/// See https://wiki.openstreetmap.org/wiki/Bounding_box
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+/// See <https://wiki.openstreetmap.org/wiki/Bounding_box>
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct BBox {
     south_west: Coordinates,
     north_east: Coordinates,
@@ -18,7 +21,7 @@ impl BBox {
     ///
     /// # Error
     ///
-    /// Returns a [`coordinates::error::Error::InvalidBBox`] if south_west > north_east.
+    /// Returns a [`coordinates::error::Error::InvalidCornerOrder`] if south_west > north_east.
     pub fn new(
         south_west: Coordinates,
         north_east: Coordinates,
@@ -43,6 +46,18 @@ impl BBox {
         }
     }
 
+    pub fn from_wrapped(
+        south_west_latitude: CoordinateType,
+        south_west_longitude: CoordinateType,
+        north_east_latitude: CoordinateType,
+        north_east_longitude: CoordinateType,
+    ) -> Self {
+        Self {
+            south_west: Coordinates::from_wrapped(south_west_latitude, south_west_longitude),
+            north_east: Coordinates::from_wrapped(north_east_latitude, north_east_longitude),
+        }
+    }
+
     /// Return the lower left coordinate.
     pub fn south_west(&self) -> &Coordinates {
         &self.south_west
@@ -53,19 +68,16 @@ impl BBox {
         &self.north_east
     }
 
-    /// Get if a [`Coordinates`] is inside the [`BBox`].
-    pub fn contains(&self, coord: &Coordinates) -> bool {
-        self.south_west() <= coord && self.north_east() >= coord
-    }
-
     /// Get the [`BBox`] width.
     pub fn width(&self) -> CoordinateType {
-        *self.north_east().longitude() - *self.south_west().longitude()
+        CoordinateType::from(self.north_east().longitude())
+            - CoordinateType::from(self.south_west().longitude())
     }
 
     /// Get the [`BBox`] height.
     pub fn height(&self) -> CoordinateType {
-        *self.north_east().latitude() - *self.south_west().latitude()
+        CoordinateType::from(self.north_east().latitude())
+            - CoordinateType::from(self.south_west().latitude())
     }
 
     /// Get the [`BBox`] area.
@@ -76,15 +88,103 @@ impl BBox {
     /// Get the [`Coordinates`] of the center of this [`BBox`].
     pub fn center(&self) -> Coordinates {
         self.south_west().clone()
-            + Coordinates::from_clamped(self.height() / 2.0, self.width() / 2.0)
+            + Coordinates::from_wrapped(self.height() / 2.0, self.width() / 2.0)
+    }
+
+    /// Get if a [`Coordinates`] is inside the [`BBox`].
+    ///
+    /// This function is inclusive.
+    pub fn contains(&self, p: &Coordinates) -> bool {
+        let lat = p.latitude().value();
+        let lon = p.longitude().value();
+
+        Self::between_inclusive(
+            lat,
+            self.south_west.latitude().value(),
+            self.north_east.latitude().value(),
+        ) && Self::between_inclusive(
+            lon,
+            self.south_west.longitude().value(),
+            self.north_east.longitude().value(),
+        )
+    }
+
+    /// Get if a [`BBox`] is inside the [`BBox`].
+    ///
+    /// This function is inclusive.
+    pub fn contains_bbox(&self, other: &Self) -> bool {
+        self.contains(other.south_west()) && self.contains(other.north_east())
     }
 
     /// Expand the [`BBox`] by delta_coord in all directions evenly.
-    pub fn expand(&mut self, delta_coord: &Coordinates) {
-        let half_delta_coord = delta_coord.clone() / 2.0;
+    pub fn expand(&mut self, delta_coord: Coordinates) {
+        let half_delta_coord = delta_coord / 2.0;
 
         self.south_west -= half_delta_coord;
         self.north_east += half_delta_coord;
+    }
+
+    pub fn intersects(&self, other: &Self) -> bool {
+        let (a_s, a_w) = (
+            self.south_west.latitude().value(),
+            self.south_west.longitude().value(),
+        );
+        let (a_n, a_e) = (
+            self.north_east.latitude().value(),
+            self.north_east.longitude().value(),
+        );
+        let (b_s, b_w) = (
+            other.south_west.latitude().value(),
+            other.south_west.longitude().value(),
+        );
+        let (b_n, b_e) = (
+            other.north_east.latitude().value(),
+            other.north_east.longitude().value(),
+        );
+
+        Self::overlaps_1d(a_s, a_n, b_s, b_n) && Self::overlaps_1d(a_w, a_e, b_w, b_e)
+    }
+
+    pub fn intersection(&self, other: &Self) -> Option<Self> {
+        if !self.intersects(other) {
+            return None;
+        };
+
+        let sw_lat = self
+            .south_west
+            .latitude()
+            .value()
+            .max(other.south_west.latitude().value());
+        let sw_lon = self
+            .south_west
+            .longitude()
+            .value()
+            .max(other.south_west.longitude().value());
+        let ne_lat = self
+            .north_east
+            .latitude()
+            .value()
+            .max(other.north_east.latitude().value());
+        let ne_lon = self
+            .north_east
+            .longitude()
+            .value()
+            .max(other.north_east.longitude().value());
+
+        Some(BBox::from_wrapped(sw_lat, sw_lon, ne_lat, ne_lon))
+    }
+
+    fn between_inclusive(v: CoordinateType, lo: CoordinateType, hi: CoordinateType) -> bool {
+        v >= lo && v <= hi
+    }
+
+    fn overlaps_1d(
+        a_min: CoordinateType,
+        a_max: CoordinateType,
+        b_min: CoordinateType,
+        b_max: CoordinateType,
+    ) -> bool {
+        a_min <= b_max && b_min <= a_max
     }
 }
 
@@ -108,13 +208,23 @@ impl From<BBox>
 
 impl PartialEq for BBox {
     fn eq(&self, other: &Self) -> bool {
-        self.area() == other.area()
+        self.south_west == other.south_west && self.north_east == other.north_east
     }
 }
 
 impl PartialOrd for BBox {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.area().partial_cmp(&other.area())
+        use std::cmp::Ordering;
+
+        let a_in_b = other.contains_bbox(self);
+        let b_in_a = self.contains_bbox(other);
+
+        match (a_in_b, b_in_a) {
+            (true, true) => Some(Ordering::Equal),
+            (true, false) => Some(Ordering::Less),
+            (false, true) => Some(Ordering::Greater),
+            (false, false) => None,
+        }
     }
 }
 
@@ -130,6 +240,24 @@ impl Display for BBox {
             north_east.latitude(),
             north_east.longitude()
         )
+    }
+}
+
+impl<T: Into<CoordinateType>> Mul<T> for BBox {
+    type Output = Self;
+
+    fn mul(self, rhs: T) -> Self::Output {
+        let rhs = rhs.into();
+        Self::from_unchecked(self.south_west * rhs, self.north_east * rhs)
+    }
+}
+
+impl<T: Into<CoordinateType>> Div<T> for BBox {
+    type Output = Self;
+
+    fn div(self, rhs: T) -> Self::Output {
+        let rhs = rhs.into();
+        Self::from_unchecked(self.south_west * rhs, self.north_east * rhs)
     }
 }
 
@@ -174,8 +302,8 @@ mod bbox_test {
     #[test]
     fn width_height() {
         let bbox = BBox::new(
-            Coordinates::from_clamped(1.0, 0.0),
-            Coordinates::from_clamped(2.0, 2.0),
+            Coordinates::from_wrapped(1.0, 0.0),
+            Coordinates::from_wrapped(2.0, 2.0),
         )
         .unwrap();
 
@@ -186,8 +314,8 @@ mod bbox_test {
     #[test]
     fn area() {
         let bbox = BBox::new(
-            Coordinates::from_clamped(0.0, 0.0),
-            Coordinates::from_clamped(2.0, 2.0),
+            Coordinates::from_wrapped(0.0, 0.0),
+            Coordinates::from_wrapped(2.0, 2.0),
         )
         .unwrap();
 
@@ -197,32 +325,86 @@ mod bbox_test {
     #[test]
     fn center() {
         let bbox = BBox::new(
-            Coordinates::from_clamped(0.0, 0.0),
-            Coordinates::from_clamped(2.0, 2.0),
+            Coordinates::from_wrapped(0.0, 0.0),
+            Coordinates::from_wrapped(2.0, 2.0),
         )
         .unwrap();
 
-        assert_eq!(bbox.center(), Coordinates::from_clamped(1.0, 1.0));
+        assert_eq!(bbox.center(), Coordinates::from_wrapped(1.0, 1.0));
     }
 
     #[test]
     fn expand() {
         let mut bbox = BBox::new(
-            Coordinates::from_clamped(0.0, 0.0),
-            Coordinates::from_clamped(1.0, 1.0),
+            Coordinates::from_wrapped(0.0, 0.0),
+            Coordinates::from_wrapped(1.0, 1.0),
         )
         .unwrap();
 
-        bbox.expand(&Coordinates::from_clamped(1.0, 1.0));
+        bbox.expand(Coordinates::from_wrapped(1.0, 1.0));
 
         assert_eq!(
             bbox,
             BBox::new(
-                Coordinates::from_clamped(-0.5, -0.5),
-                Coordinates::from_clamped(1.5, 1.5)
+                Coordinates::from_wrapped(-0.5, -0.5),
+                Coordinates::from_wrapped(1.5, 1.5)
             )
             .unwrap()
         )
+    }
+
+    #[test]
+    fn contains() {
+        let bbox = BBox::new(
+            Coordinates::from_wrapped(0.0, 0.0),
+            Coordinates::from_wrapped(50.0, 50.0),
+        )
+        .unwrap();
+
+        assert!(bbox.contains(&Coordinates::from_wrapped(25.0, 25.0)));
+    }
+
+    #[test]
+    fn contains_edge() {
+        let bbox = BBox::new(
+            Coordinates::from_wrapped(0.0, 0.0),
+            Coordinates::from_wrapped(50.0, 50.0),
+        )
+        .unwrap();
+
+        assert!(bbox.contains(&Coordinates::from_wrapped(50.0, 0.0)));
+    }
+
+    #[test]
+    fn contains_fail() {
+        let bbox = BBox::new(
+            Coordinates::from_wrapped(0.0, 0.0),
+            Coordinates::from_wrapped(50.0, 50.0),
+        )
+        .unwrap();
+
+        assert!(!bbox.contains(&Coordinates::from_wrapped(-1.0, 0.0)));
+    }
+
+    #[test]
+    fn contains_bbox() {
+        let bbox = BBox::from_wrapped(0.0, 0.0, 50.0, 50.0);
+
+        assert!(bbox.contains_bbox(&BBox::from_wrapped(10.0, 20.0, 49.0, 40.0)));
+    }
+
+    #[test]
+    fn contains_bbox_edge() {
+        let bbox = BBox::from_wrapped(0.0, 0.0, 50.0, 50.0);
+
+        assert!(bbox.contains_bbox(&BBox::from_wrapped(0.0, 0.0, 50.0, 50.0)));
+    }
+
+    #[test]
+    fn contains_bbox_fail() {
+        let bbox = BBox::from_wrapped(0.0, 0.0, 50.0, 50.0);
+
+        assert!(!bbox.contains_bbox(&BBox::from_wrapped(-1.0, -1.0, 50.0, 50.0)));
     }
 
     #[test]

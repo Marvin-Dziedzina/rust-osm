@@ -1,23 +1,37 @@
 use std::{
     fmt::Display,
-    ops::{Add, AddAssign, Div, Mul, Sub, SubAssign},
+    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign},
 };
 
 use serde::{Deserialize, Serialize};
 
 use crate::coordinates::{self, CoordinateType, latitude::Latitude, longitude::Longitude};
 
-/// A single point on a plane.
+/// A single point on earth.
 ///
-/// See https://wiki.openstreetmap.org/wiki/Coordinates
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+///
+/// The [`PartialOrd`] is implemented as follows:
+///
+/// | Lat     | Lon     | Res     |
+/// |---------|---------|---------|
+/// | Less    | Less    | Less    |
+/// | Less    | Equal   | Less    |
+/// | Equal   | Less    | Less    |
+/// | Equal   | Equal   | Equal   |
+/// | Equal   | Greater | Greater |
+/// | Greater | Equal   | Greater |
+/// | Greater | Greater | Greater |
+///
+///
+/// See <https://wiki.openstreetmap.org/wiki/Coordinates>
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize)]
 pub struct Coordinates {
     latitude: Latitude,
     longitude: Longitude,
 }
 
 impl Coordinates {
-    /// Construct a new [`Coordinate`] from [`CoordinateType`].
+    /// Construct a new [`Coordinates`] from [`CoordinateType`].
     pub fn new(latitude: Latitude, longitude: Longitude) -> Self {
         Self {
             latitude,
@@ -25,7 +39,7 @@ impl Coordinates {
         }
     }
 
-    /// Construct a new [`Coordinate`] from [`CoordinateType`].
+    /// Construct a new [`Coordinates`] from [`CoordinateType`].
     ///
     /// # Error
     ///
@@ -40,7 +54,7 @@ impl Coordinates {
         ))
     }
 
-    /// Construct a new unchecked [`Coordinate`] from [`CoordinateType`].
+    /// Construct a new unchecked [`Coordinates`] from [`CoordinateType`].
     pub fn from_unchecked(latitude: CoordinateType, longitude: CoordinateType) -> Self {
         Self::new(
             Latitude::from_unchecked(latitude),
@@ -48,22 +62,22 @@ impl Coordinates {
         )
     }
 
-    /// Construct a new [`Coordinate`] from latitude and longitude that will get clamped to a valid value.
-    pub fn from_clamped(latitude: CoordinateType, longitude: CoordinateType) -> Self {
+    /// Construct a new [`Coordinates`] from latitude and longitude that will get clamped to a valid value.
+    pub fn from_wrapped(latitude: CoordinateType, longitude: CoordinateType) -> Self {
         Self::new(
             Latitude::from_clamped(latitude),
-            Longitude::from_clamped(longitude),
+            Longitude::from_wrapped(longitude),
         )
     }
 
-    /// [`Latitude`] of this [`Coordinate`].
+    /// [`Latitude`] of this [`Coordinates`].
     ///
     /// [`Latitude`] is the y coordinate.
     pub fn latitude(&self) -> Latitude {
         self.latitude
     }
 
-    /// [`Longitude`] of this [`Coordinate`].
+    /// [`Longitude`] of this [`Coordinates`].
     ///
     /// [`Longitude`] is the x coordinate.
     pub fn longitude(&self) -> Longitude {
@@ -74,6 +88,18 @@ impl Coordinates {
 impl From<Coordinates> for (CoordinateType, CoordinateType) {
     fn from(value: Coordinates) -> Self {
         (value.latitude().value(), value.longitude().value())
+    }
+}
+
+impl TryFrom<(CoordinateType, CoordinateType)> for Coordinates {
+    type Error = coordinates::error::Error;
+
+    /// Constructs a new [`Coordinates`].
+    ///
+    /// 0: Latitude
+    /// 1: Longitude
+    fn try_from(value: (CoordinateType, CoordinateType)) -> Result<Self, Self::Error> {
+        Self::from_value(value.0, value.1)
     }
 }
 
@@ -103,7 +129,7 @@ impl PartialOrd for Coordinates {
 
 impl Display for Coordinates {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "( Lat: {}, Lon: {} )", self.latitude(), self.longitude())
+        write!(f, "{} {}", self.latitude, self.longitude)
     }
 }
 
@@ -115,10 +141,23 @@ impl Add for Coordinates {
     }
 }
 
+impl Add<&Self> for Coordinates {
+    type Output = Self;
+
+    fn add(self, rhs: &Self) -> Self::Output {
+        Self::new(self.latitude + rhs.latitude, self.longitude + rhs.longitude)
+    }
+}
+
 impl AddAssign for Coordinates {
     fn add_assign(&mut self, rhs: Self) {
-        self.latitude = self.latitude + rhs.latitude;
-        self.longitude = self.longitude + rhs.longitude;
+        *self = Self::new(self.latitude + rhs.latitude, self.longitude + rhs.longitude);
+    }
+}
+
+impl AddAssign<&Self> for Coordinates {
+    fn add_assign(&mut self, rhs: &Self) {
+        *self = Self::new(self.latitude + rhs.latitude, self.longitude + rhs.longitude);
     }
 }
 
@@ -130,42 +169,55 @@ impl Sub for Coordinates {
     }
 }
 
+impl Sub<&Self> for Coordinates {
+    type Output = Self;
+
+    fn sub(self, rhs: &Self) -> Self::Output {
+        Self::new(self.latitude - rhs.latitude, self.longitude - rhs.longitude)
+    }
+}
+
 impl SubAssign for Coordinates {
     fn sub_assign(&mut self, rhs: Self) {
-        self.latitude = self.latitude - rhs.latitude;
-        self.longitude = self.longitude - rhs.longitude;
+        *self = Self::new(self.latitude - rhs.latitude, self.longitude - rhs.longitude);
     }
 }
 
-impl Mul for Coordinates {
-    type Output = Self;
-
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self::new(self.latitude * rhs.latitude, self.longitude * rhs.longitude)
+impl SubAssign<&Self> for Coordinates {
+    fn sub_assign(&mut self, rhs: &Self) {
+        *self = Self::new(self.latitude - rhs.latitude, self.longitude - rhs.longitude);
     }
 }
 
-impl Mul<CoordinateType> for Coordinates {
+impl<T: Into<CoordinateType>> Mul<T> for Coordinates {
     type Output = Self;
 
-    fn mul(self, rhs: CoordinateType) -> Self::Output {
-        Self::from_clamped(self.latitude.value() * rhs, self.longitude.value() * rhs)
+    fn mul(self, rhs: T) -> Self::Output {
+        let rhs = rhs.into();
+        Self::new(self.latitude * rhs, self.longitude * rhs)
     }
 }
 
-impl Div for Coordinates {
-    type Output = Self;
-
-    fn div(self, rhs: Self) -> Self::Output {
-        Self::new(self.latitude / rhs.latitude, self.longitude / rhs.longitude)
+impl<T: Into<CoordinateType>> MulAssign<T> for Coordinates {
+    fn mul_assign(&mut self, rhs: T) {
+        let rhs = rhs.into();
+        *self = Self::new(self.latitude * rhs, self.longitude * rhs);
     }
 }
 
-impl Div<CoordinateType> for Coordinates {
+impl<T: Into<CoordinateType>> Div<T> for Coordinates {
     type Output = Self;
 
-    fn div(self, rhs: CoordinateType) -> Self::Output {
-        Self::from_clamped(self.latitude.value() / rhs, self.longitude.value() / rhs)
+    fn div(self, rhs: T) -> Self::Output {
+        let rhs = rhs.into();
+        Self::new(self.latitude / rhs, self.longitude / rhs)
+    }
+}
+
+impl<T: Into<CoordinateType>> DivAssign<T> for Coordinates {
+    fn div_assign(&mut self, rhs: T) {
+        let rhs = rhs.into();
+        *self = Self::new(self.latitude / rhs, self.longitude / rhs);
     }
 }
 

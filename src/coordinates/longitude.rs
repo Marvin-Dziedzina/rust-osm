@@ -1,15 +1,17 @@
 use std::{
     fmt::Display,
-    ops::{Add, Deref, Div, Mul, RangeInclusive, Sub},
+    hash::Hash,
+    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, RangeInclusive, Sub, SubAssign},
 };
 
 use serde::{Deserialize, Serialize};
 
-use crate::coordinates::{self, CoordinateType};
+use crate::coordinates::{self, CoordinateType, normalize::Normalized};
 
 pub const LONGITUDE_RANGE: RangeInclusive<CoordinateType> = -180.0..=180.0;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Longitude {
     longitude: CoordinateType,
 }
@@ -21,52 +23,71 @@ impl Longitude {
     ///
     /// Returns a [`coordinates::error::Error::OutOfRange`] if the longitude provided is outside of the [`LONGITUDE_RANGE`].
     pub fn new(longitude: CoordinateType) -> Result<Self, coordinates::error::Error> {
-        if Self::is_valid_longitude(&longitude) {
+        if Self::is_valid(longitude) {
             Ok(Self { longitude })
         } else {
-            Err(coordinates::error::Error::OutOfRange)
+            Err(coordinates::error::Error::OutOfRange((
+                longitude,
+                LONGITUDE_RANGE,
+            )))
         }
     }
 
-    pub fn from_unchecked(longitude: CoordinateType) -> Self {
+    /// Construct a new [`Longitude`]. longitude should be in [`LONGITUDE_RANGE`].
+    pub const fn from_unchecked(longitude: CoordinateType) -> Self {
         Self { longitude }
     }
 
-    /// Construct a new [`Longitude`] and clamp longitude to the [`LONGITUDE_RANGE`].
-    pub fn from_clamped(longitude: CoordinateType) -> Self {
-        if LONGITUDE_RANGE.contains(&longitude) {
-            Self {
-                longitude: longitude,
-            }
-        } else {
-            Self {
-                longitude: longitude.clamp(*LONGITUDE_RANGE.start(), *LONGITUDE_RANGE.end()),
-            }
+    /// Construct a new [`Longitude`] and wrap longitude to the [`LONGITUDE_RANGE`].
+    pub fn from_wrapped(longitude: CoordinateType) -> Self {
+        Self {
+            longitude: Self::normalized(longitude),
         }
     }
 
     /// Check if the supplied longitude is in the [`LONGITUDE_RANGE`].
-    pub fn is_valid_longitude(longitude: &CoordinateType) -> bool {
+    pub fn is_valid(longitude: CoordinateType) -> bool {
         LONGITUDE_RANGE.contains(&longitude)
     }
 
     /// Get the internal longitude.
-    pub fn value(&self) -> CoordinateType {
+    pub const fn value(&self) -> CoordinateType {
         self.longitude
     }
 }
 
-impl Deref for Longitude {
-    type Target = CoordinateType;
-
-    fn deref(&self) -> &Self::Target {
-        &self.longitude
-    }
+impl Normalized for Longitude {
+    const MIN: CoordinateType = *LONGITUDE_RANGE.start();
+    const MAX: CoordinateType = *LONGITUDE_RANGE.end();
 }
 
 impl Display for Longitude {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.value())
+        if self.longitude >= 0.0 {
+            write!(f, "{} °E", self.longitude)
+        } else {
+            write!(f, "{} °W", self.longitude.abs())
+        }
+    }
+}
+
+impl Eq for Longitude {}
+
+impl Ord for Longitude {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.longitude.total_cmp(&other.longitude)
+    }
+}
+
+impl Hash for Longitude {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        let bits = if self.longitude == 0.0 {
+            0.0f64.to_bits()
+        } else {
+            self.longitude.to_bits()
+        };
+
+        bits.hash(state);
     }
 }
 
@@ -84,41 +105,76 @@ impl From<Longitude> for CoordinateType {
     }
 }
 
-impl Add for Longitude {
+impl<T: Into<CoordinateType>> Add<T> for Longitude {
     type Output = Self;
 
-    fn add(self, rhs: Self) -> Self::Output {
-        Self::from_clamped(self.longitude + rhs.longitude)
+    fn add(self, rhs: T) -> Self::Output {
+        Self::from_wrapped(self.longitude + rhs.into())
     }
 }
 
-impl Sub for Longitude {
-    type Output = Self;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Self::from_clamped(self.longitude - rhs.longitude)
+impl<T: Into<CoordinateType>> AddAssign<T> for Longitude {
+    fn add_assign(&mut self, rhs: T) {
+        *self = Self::from_wrapped(self.longitude + rhs.into());
     }
 }
 
-impl Mul for Longitude {
+impl<T: Into<CoordinateType>> Sub<T> for Longitude {
     type Output = Self;
 
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self::from_clamped(self.longitude * rhs.longitude)
+    fn sub(self, rhs: T) -> Self::Output {
+        Self::from_wrapped(self.longitude - rhs.into())
     }
 }
 
-impl Div for Longitude {
+impl<T: Into<CoordinateType>> SubAssign<T> for Longitude {
+    fn sub_assign(&mut self, rhs: T) {
+        *self = Self::from_wrapped(self.longitude - rhs.into());
+    }
+}
+
+impl<T: Into<CoordinateType>> Mul<T> for Longitude {
     type Output = Self;
 
-    fn div(self, rhs: Self) -> Self::Output {
-        Self::from_clamped(self.longitude / rhs.longitude)
+    fn mul(self, rhs: T) -> Self::Output {
+        Self::from_wrapped(self.longitude * rhs.into())
+    }
+}
+
+impl<T: Into<CoordinateType>> MulAssign<T> for Longitude {
+    fn mul_assign(&mut self, rhs: T) {
+        *self = Self::from_wrapped(self.longitude * rhs.into());
+    }
+}
+
+impl<T: Into<CoordinateType>> Div<T> for Longitude {
+    type Output = Self;
+
+    fn div(self, rhs: T) -> Self::Output {
+        Self::from_wrapped(self.longitude / rhs.into())
+    }
+}
+
+impl<T: Into<CoordinateType>> DivAssign<T> for Longitude {
+    fn div_assign(&mut self, rhs: T) {
+        *self = Self::from_wrapped(self.longitude / rhs.into());
+    }
+}
+
+impl Neg for Longitude {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self::from_wrapped(-self.longitude)
     }
 }
 
 #[cfg(test)]
 mod longitude_test {
-    use crate::coordinates::longitude::Longitude;
+    use crate::coordinates::{
+        CoordinateType,
+        longitude::{LONGITUDE_RANGE, Longitude},
+    };
 
     #[test]
     fn in_range() {
@@ -127,32 +183,85 @@ mod longitude_test {
 
     #[test]
     fn in_range_lower_edge() {
-        assert!(Longitude::new(-180.0).is_ok())
+        assert!(Longitude::new(*LONGITUDE_RANGE.start()).is_ok())
     }
 
     #[test]
     fn in_range_upper_edge() {
-        assert!(Longitude::new(180.0).is_ok())
+        assert!(Longitude::new(*LONGITUDE_RANGE.end()).is_ok())
     }
 
     #[test]
     fn out_range_lower_edge() {
-        assert!(Longitude::new(-180.1).is_err())
+        assert!(Longitude::new(LONGITUDE_RANGE.start() - 0.1).is_err())
     }
 
     #[test]
     fn out_range_upper_edge() {
-        assert!(Longitude::new(180.1).is_err())
+        assert!(Longitude::new(LONGITUDE_RANGE.end() + 0.1).is_err())
     }
 
     #[test]
     fn out_range_lower() {
-        assert!(Longitude::new(-360.0).is_err())
+        assert!(Longitude::new(LONGITUDE_RANGE.start() * 2.0).is_err())
     }
 
     #[test]
     fn out_range_upper() {
-        assert!(Longitude::new(360.0).is_err())
+        assert!(Longitude::new(LONGITUDE_RANGE.end() * 2.0).is_err())
+    }
+
+    #[test]
+    fn wrapped_zero() {
+        assert_eq!(Longitude::from_wrapped(0.0).value(), 0.0);
+    }
+
+    #[test]
+    fn wrapped_lower_edge() {
+        assert_eq!(
+            Longitude::from_wrapped(*LONGITUDE_RANGE.start()).value(),
+            *LONGITUDE_RANGE.start()
+        );
+    }
+
+    #[test]
+    fn wrapped_upper_edge() {
+        assert_eq!(
+            Longitude::from_wrapped(*LONGITUDE_RANGE.end()).value(),
+            -*LONGITUDE_RANGE.end()
+        );
+    }
+
+    #[test]
+    fn wrapped_over_lower_edge() {
+        assert_eq!(
+            round(Longitude::from_wrapped(*LONGITUDE_RANGE.start() - 0.1).value()),
+            *LONGITUDE_RANGE.end() - 0.1
+        );
+    }
+
+    #[test]
+    fn wrapped_over_upper_edge() {
+        assert_eq!(
+            round(Longitude::from_wrapped(*LONGITUDE_RANGE.end() + 0.1).value()),
+            *LONGITUDE_RANGE.start() + 0.1
+        );
+    }
+
+    #[test]
+    fn wrapped_lower() {
+        assert_eq!(
+            Longitude::from_wrapped(*LONGITUDE_RANGE.start() * 2.0).value(),
+            0.0
+        );
+    }
+
+    #[test]
+    fn wrapped_upper() {
+        assert_eq!(
+            Longitude::from_wrapped(*LONGITUDE_RANGE.end() * 2.0).value(),
+            0.0
+        );
     }
 
     #[test]
@@ -163,18 +272,23 @@ mod longitude_test {
     }
 
     #[test]
-    fn deref() {
-        let longitude = Longitude::new(2.0).unwrap();
-
-        assert_eq!(2.0, *longitude);
-    }
-
-    #[test]
     fn partial_ord() {
         let longitude1 = Longitude::new(1.0).unwrap();
         let longitude2 = Longitude::new(2.0).unwrap();
 
         assert!(longitude1 < longitude2);
         assert!(!(longitude1 > longitude2));
+    }
+
+    #[test]
+    fn neg() {
+        assert_eq!(
+            -Longitude::new(45.0).unwrap(),
+            Longitude::new(-45.0).unwrap()
+        );
+    }
+
+    fn round(x: CoordinateType) -> CoordinateType {
+        (x * 1e6).round() / 1e6
     }
 }
