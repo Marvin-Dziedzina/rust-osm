@@ -257,7 +257,7 @@ impl<T: Into<CoordinateType>> Div<T> for BBox {
 
     fn div(self, rhs: T) -> Self::Output {
         let rhs = rhs.into();
-        Self::from_unchecked(self.south_west * rhs, self.north_east * rhs)
+        Self::from_unchecked(self.south_west / rhs, self.north_east / rhs)
     }
 }
 
