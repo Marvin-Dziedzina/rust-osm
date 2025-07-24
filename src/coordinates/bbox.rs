@@ -40,7 +40,7 @@ impl BBox {
         }
     }
 
-    /// Create a new [`BBox`] without checking if south_west ist south-west from north_east.
+    /// Create a new [`BBox`] without checking if south_west is south-west from north_east.
     pub fn from_unchecked(south_west: Coordinates, north_east: Coordinates) -> Self {
         Self {
             south_west,
@@ -61,36 +61,80 @@ impl BBox {
     }
 
     /// Return the lower left coordinate.
-    pub fn south_west(&self) -> &Coordinates {
-        &self.south_west
+    pub fn south_west(&self) -> Coordinates {
+        self.south_west
     }
 
     /// Return the upper right coordinate.
-    pub fn north_east(&self) -> &Coordinates {
-        &self.north_east
+    pub fn north_east(&self) -> Coordinates {
+        self.north_east
     }
 
-    /// Get the [`BBox`] width.
-    pub fn width(&self) -> CoordinateType {
-        CoordinateType::from(self.north_east().longitude())
-            - CoordinateType::from(self.south_west().longitude())
-    }
-
-    /// Get the [`BBox`] height.
-    pub fn height(&self) -> CoordinateType {
+    /// Get latitude degrees.
+    pub fn delta_lat_deg(&self) -> CoordinateType {
         CoordinateType::from(self.north_east().latitude())
             - CoordinateType::from(self.south_west().latitude())
     }
 
-    /// Get the [`BBox`] area.
-    pub fn area(&self) -> CoordinateType {
-        self.width() * self.height()
+    /// Get longitude degrees.
+    pub fn delta_lon_deg(&self) -> CoordinateType {
+        CoordinateType::from(self.north_east().longitude())
+            - CoordinateType::from(self.south_west().longitude())
+    }
+
+    /// Get latitude in rad.
+    pub fn delta_lat_rad(&self) -> CoordinateType {
+        Self::deg_to_rad(self.delta_lat_deg())
+    }
+
+    /// Get longitude in rad.
+    pub fn delta_lon_rad(&self) -> CoordinateType {
+        Self::deg_to_rad(self.delta_lon_deg())
+    }
+
+    /// Get latitude in m.
+    pub fn height_m(&self) -> CoordinateType {
+        todo!()
+    }
+
+    /// Get longitude in m.
+    pub fn width_m(&self) -> CoordinateType {
+        todo!()
+    }
+
+    /// Get the corners of the [`BBox`].
+    ///
+    /// (south_west.latitude, south_west.longitude, north_east.latitude, north_east.longitude)
+    pub fn corners(
+        &self,
+    ) -> (
+        CoordinateType,
+        CoordinateType,
+        CoordinateType,
+        CoordinateType,
+    ) {
+        (
+            self.south_west.latitude().value(),
+            self.south_west.longitude().value(),
+            self.north_east.latitude().value(),
+            self.north_east.longitude().value(),
+        )
+    }
+
+    /// Get the [`BBox`] area in deg2.
+    pub fn area_deg2(&self) -> CoordinateType {
+        self.delta_lon_deg() * self.delta_lat_deg()
+    }
+
+    /// Get the [`BBox`] area in m2.
+    pub fn area_m2(&self) -> CoordinateType {
+        self.width_m() * self.height_m()
     }
 
     /// Get the [`Coordinates`] of the center of this [`BBox`].
     pub fn center(&self) -> Coordinates {
-        self.south_west().clone()
-            + Coordinates::from_wrapped(self.height() / 2.0, self.width() / 2.0)
+        self.south_west()
+            + Coordinates::from_wrapped(self.delta_lat_deg() / 2.0, self.delta_lon_deg() / 2.0)
     }
 
     /// Get if a [`Coordinates`] is inside the [`BBox`].
@@ -115,7 +159,7 @@ impl BBox {
     ///
     /// This function is inclusive.
     pub fn contains_bbox(&self, other: &Self) -> bool {
-        self.contains(other.south_west()) && self.contains(other.north_east())
+        self.contains(&other.south_west()) && self.contains(&other.north_east())
     }
 
     pub fn intersects(&self, other: &Self) -> bool {
@@ -180,6 +224,26 @@ impl BBox {
     ) -> bool {
         a_min <= b_max && b_min <= a_max
     }
+
+    #[cfg(feature = "coordinate_f32")]
+    pub fn deg_to_rad(deg: CoordinateType) -> CoordinateType {
+        deg * std::f32::consts::PI / 180.0
+    }
+
+    #[cfg(feature = "coordinate_f64")]
+    pub fn deg_to_rad(deg: CoordinateType) -> CoordinateType {
+        deg * std::f64::consts::PI / 180.0
+    }
+
+    #[cfg(feature = "coordinate_f32")]
+    pub fn rad_to_deg(rad: CoordinateType) -> CoordinateType {
+        rad * 180.0 / std::f32::consts::PI
+    }
+
+    #[cfg(feature = "coordinate_f64")]
+    pub fn rad_to_deg(rad: CoordinateType) -> CoordinateType {
+        rad * 180.0 / std::f64::consts::PI
+    }
 }
 
 impl From<BBox>
@@ -200,11 +264,24 @@ impl From<BBox>
     }
 }
 
+impl<T: Into<CoordinateType>> TryFrom<(T, T, T, T)> for BBox {
+    type Error = coordinates::error::Error;
+
+    fn try_from(tuple: (T, T, T, T)) -> Result<Self, Self::Error> {
+        Self::new(
+            Coordinates::from_value(tuple.0.into(), tuple.1.into())?,
+            Coordinates::from_value(tuple.2.into(), tuple.3.into())?,
+        )
+    }
+}
+
 impl PartialEq for BBox {
     fn eq(&self, other: &Self) -> bool {
         self.south_west == other.south_west && self.north_east == other.north_east
     }
 }
+
+impl Eq for BBox {}
 
 impl PartialOrd for BBox {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -301,8 +378,8 @@ mod bbox_test {
         )
         .unwrap();
 
-        assert_eq!(bbox.width(), 2.0);
-        assert_eq!(bbox.height(), 1.0)
+        assert_eq!(bbox.delta_lon_deg(), 2.0);
+        assert_eq!(bbox.delta_lat_deg(), 1.0)
     }
 
     #[test]
@@ -313,7 +390,10 @@ mod bbox_test {
         )
         .unwrap();
 
-        assert_eq!(bbox.area(), bbox.width() * bbox.height());
+        assert_eq!(
+            bbox.area_deg2(),
+            bbox.delta_lon_deg() * bbox.delta_lat_deg()
+        );
     }
 
     #[test]
