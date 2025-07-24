@@ -26,7 +26,9 @@ impl BBox {
         south_west: Coordinates,
         north_east: Coordinates,
     ) -> Result<Self, coordinates::error::Error> {
-        if south_west < north_east {
+        if south_west.latitude() < north_east.latitude()
+            && south_west.longitude() < north_east.longitude()
+        {
             Ok(Self {
                 south_west,
                 north_east,
