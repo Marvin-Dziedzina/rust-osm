@@ -164,12 +164,12 @@ impl BBox {
             .north_east
             .latitude()
             .value()
-            .max(other.north_east.latitude().value());
+            .min(other.north_east.latitude().value());
         let ne_lon = self
             .north_east
             .longitude()
             .value()
-            .max(other.north_east.longitude().value());
+            .min(other.north_east.longitude().value());
 
         Some(BBox::from_wrapped(sw_lat, sw_lon, ne_lat, ne_lon))
     }
@@ -405,6 +405,67 @@ mod bbox_test {
         let bbox = BBox::from_wrapped(0.0, 0.0, 50.0, 50.0);
 
         assert!(!bbox.contains_bbox(&BBox::from_wrapped(-1.0, -1.0, 50.0, 50.0)));
+    }
+
+    #[test]
+    fn intersects() {
+        let bbox = BBox::from_wrapped(0.0, 0.0, 50.0, 50.0);
+        let other = BBox::from_wrapped(49.0, 49.0, 80.0, 80.0);
+
+        assert!(bbox.intersects(&other));
+        assert!(other.intersects(&bbox));
+    }
+
+    #[test]
+    fn intersects_no_intersect() {
+        let bbox = BBox::from_wrapped(0.0, 0.0, 50.0, 50.0);
+        let other = BBox::from_wrapped(50.1, 50.1, 80.0, 80.0);
+
+        assert!(!bbox.intersects(&other));
+        assert!(!other.intersects(&bbox));
+    }
+
+    #[test]
+    fn intersects_eq_intersect() {
+        let bbox = BBox::from_wrapped(0.0, 0.0, 50.0, 50.0);
+        let other = BBox::from_wrapped(0.0, 0.0, 50.0, 50.0);
+
+        assert_eq!(bbox, other);
+        assert!(bbox.intersects(&other));
+        assert!(other.intersects(&bbox));
+    }
+
+    #[test]
+    fn intersection() {
+        let bbox = BBox::from_wrapped(0.0, 0.0, 50.0, 50.0);
+        let other = BBox::from_wrapped(45.0, 45.0, 80.0, 80.0);
+
+        assert_eq!(
+            bbox.intersection(&other).unwrap(),
+            BBox::from_wrapped(45.0, 45.0, 50.0, 50.0)
+        );
+        assert_eq!(
+            other.intersection(&bbox).unwrap(),
+            BBox::from_wrapped(45.0, 45.0, 50.0, 50.0)
+        );
+    }
+
+    #[test]
+    fn intersection_no_intersection() {
+        let bbox = BBox::from_wrapped(0.0, 0.0, 50.0, 50.0);
+        let other = BBox::from_wrapped(50.1, 45.0, 80.0, 80.0);
+
+        assert!(bbox.intersection(&other).is_none());
+    }
+
+    #[test]
+    fn intersection_eq_intersection() {
+        let bbox = BBox::from_wrapped(0.0, 0.0, 50.0, 50.0);
+        let other = BBox::from_wrapped(0.0, 0.0, 50.0, 50.0);
+
+        let intersection = bbox.intersection(&other).unwrap();
+        assert_eq!(intersection, bbox);
+        assert_eq!(intersection, other);
     }
 
     #[test]
