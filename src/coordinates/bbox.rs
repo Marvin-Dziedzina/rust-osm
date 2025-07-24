@@ -118,14 +118,6 @@ impl BBox {
         self.contains(other.south_west()) && self.contains(other.north_east())
     }
 
-    /// Expand the [`BBox`] by delta_coord in all directions evenly.
-    pub fn expand(&mut self, delta_coord: Coordinates) {
-        let half_delta_coord = delta_coord / 2.0;
-
-        self.south_west -= half_delta_coord;
-        self.north_east += half_delta_coord;
-    }
-
     pub fn intersects(&self, other: &Self) -> bool {
         let (a_s, a_w) = (
             self.south_west.latitude().value(),
@@ -333,26 +325,6 @@ mod bbox_test {
         .unwrap();
 
         assert_eq!(bbox.center(), Coordinates::from_wrapped(1.0, 1.0));
-    }
-
-    #[test]
-    fn expand() {
-        let mut bbox = BBox::new(
-            Coordinates::from_wrapped(0.0, 0.0),
-            Coordinates::from_wrapped(1.0, 1.0),
-        )
-        .unwrap();
-
-        bbox.expand(Coordinates::from_wrapped(1.0, 1.0));
-
-        assert_eq!(
-            bbox,
-            BBox::new(
-                Coordinates::from_wrapped(-0.5, -0.5),
-                Coordinates::from_wrapped(1.5, 1.5)
-            )
-            .unwrap()
-        )
     }
 
     #[test]
