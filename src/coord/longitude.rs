@@ -6,7 +6,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::coordinates::{self, CoordinateType, normalize::Normalized};
+use crate::coord::{self, CoordinateType, normalize::Normalized};
 
 pub const LONGITUDE_RANGE: RangeInclusive<CoordinateType> = -180.0..=180.0;
 
@@ -22,11 +22,11 @@ impl Longitude {
     /// # Error
     ///
     /// Returns a [`coordinates::error::Error::OutOfRange`] if the longitude provided is outside of the [`LONGITUDE_RANGE`].
-    pub fn new(longitude: CoordinateType) -> Result<Self, coordinates::error::Error> {
+    pub fn new(longitude: CoordinateType) -> Result<Self, coord::error::Error> {
         if Self::is_valid(longitude) {
             Ok(Self { longitude })
         } else {
-            Err(coordinates::error::Error::OutOfRange((
+            Err(coord::error::Error::OutOfRange((
                 longitude,
                 LONGITUDE_RANGE,
             )))
@@ -92,7 +92,7 @@ impl Hash for Longitude {
 }
 
 impl TryFrom<CoordinateType> for Longitude {
-    type Error = coordinates::error::Error;
+    type Error = coord::error::Error;
 
     fn try_from(longitude: CoordinateType) -> Result<Self, Self::Error> {
         Self::new(longitude)
@@ -171,7 +171,7 @@ impl Neg for Longitude {
 
 #[cfg(test)]
 mod longitude_test {
-    use crate::coordinates::{
+    use crate::coord::{
         CoordinateType,
         longitude::{LONGITUDE_RANGE, Longitude},
     };

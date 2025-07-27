@@ -1,4 +1,4 @@
-use crate::coordinates::CoordinateType;
+use crate::coord::CoordinateType;
 
 pub trait Normalized {
     const MIN: CoordinateType;

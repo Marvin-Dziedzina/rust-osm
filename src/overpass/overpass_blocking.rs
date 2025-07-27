@@ -1,5 +1,6 @@
 use crate::rest_methods::RESTMethods;
 
+#[derive(Debug)]
 pub struct OverpassAPI<U: reqwest::IntoUrl + Clone> {
     url: U,
     client: reqwest::blocking::Client,

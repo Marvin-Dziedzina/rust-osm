@@ -5,7 +5,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::coordinates::{self, CoordinateType, coordinates::Coordinates};
+use crate::coord::{self, CoordinateType, coordinates::Coordinates};
 
 /// A BBox or Bounding Box.
 ///
@@ -25,7 +25,7 @@ impl BBox {
     pub fn new(
         south_west: Coordinates,
         north_east: Coordinates,
-    ) -> Result<Self, coordinates::error::Error> {
+    ) -> Result<Self, coord::error::Error> {
         if south_west.latitude() < north_east.latitude()
             && south_west.longitude() < north_east.longitude()
         {
@@ -34,7 +34,7 @@ impl BBox {
                 north_east,
             })
         } else {
-            Err(coordinates::error::Error::InvalidCornerOrder((
+            Err(coord::error::Error::InvalidCornerOrder((
                 south_west, north_east,
             )))
         }
@@ -265,7 +265,7 @@ impl From<BBox>
 }
 
 impl<T: Into<CoordinateType>> TryFrom<(T, T, T, T)> for BBox {
-    type Error = coordinates::error::Error;
+    type Error = coord::error::Error;
 
     fn try_from(tuple: (T, T, T, T)) -> Result<Self, Self::Error> {
         Self::new(
@@ -334,7 +334,7 @@ impl<T: Into<CoordinateType>> Div<T> for BBox {
 
 #[cfg(test)]
 mod bbox_test {
-    use crate::coordinates::{CoordinateType, bbox::BBox, coordinates::Coordinates};
+    use crate::coord::{CoordinateType, bbox::BBox, coordinates::Coordinates};
 
     #[test]
     fn south_west() {

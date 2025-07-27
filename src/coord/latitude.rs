@@ -6,7 +6,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::coordinates::{self, CoordinateType, normalize::Normalized};
+use crate::coord::{self, CoordinateType, normalize::Normalized};
 
 pub const LATITUDE_RANGE: RangeInclusive<CoordinateType> = -90.0..=90.0;
 
@@ -22,14 +22,11 @@ impl Latitude {
     /// # Error
     ///
     /// Returns a [`coordinates::error::Error::OutOfRange`] if the latitude provided is outside of the [`LATITUDE_RANGE`].
-    pub fn new(latitude: CoordinateType) -> Result<Self, coordinates::error::Error> {
+    pub fn new(latitude: CoordinateType) -> Result<Self, coord::error::Error> {
         if Self::is_valid(latitude) {
             Ok(Self { latitude })
         } else {
-            Err(coordinates::error::Error::OutOfRange((
-                latitude,
-                LATITUDE_RANGE,
-            )))
+            Err(coord::error::Error::OutOfRange((latitude, LATITUDE_RANGE)))
         }
     }
 
@@ -93,7 +90,7 @@ impl Hash for Latitude {
 }
 
 impl TryFrom<CoordinateType> for Latitude {
-    type Error = coordinates::error::Error;
+    type Error = coord::error::Error;
 
     fn try_from(latitude: CoordinateType) -> Result<Self, Self::Error> {
         Self::new(latitude)
@@ -172,7 +169,7 @@ impl Neg for Latitude {
 
 #[cfg(test)]
 mod latitude_test {
-    use crate::coordinates::latitude::Latitude;
+    use crate::coord::latitude::Latitude;
 
     #[test]
     fn in_range() {

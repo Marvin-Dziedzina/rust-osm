@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use crate::coordinates::{CoordinateType, coordinates::Coordinates};
+use crate::coord::{CoordinateType, coordinates::Coordinates};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

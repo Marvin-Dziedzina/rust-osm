@@ -5,7 +5,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::coordinates::{self, CoordinateType, latitude::Latitude, longitude::Longitude};
+use crate::coord::{self, CoordinateType, latitude::Latitude, longitude::Longitude};
 
 /// A single point on earth.
 ///
@@ -47,7 +47,7 @@ impl Coordinates {
     pub fn from_value(
         latitude: CoordinateType,
         longitude: CoordinateType,
-    ) -> Result<Self, coordinates::error::Error> {
+    ) -> Result<Self, coord::error::Error> {
         Ok(Self::new(
             Latitude::new(latitude)?,
             Longitude::new(longitude)?,
@@ -92,7 +92,7 @@ impl From<Coordinates> for (CoordinateType, CoordinateType) {
 }
 
 impl TryFrom<(CoordinateType, CoordinateType)> for Coordinates {
-    type Error = coordinates::error::Error;
+    type Error = coord::error::Error;
 
     /// Constructs a new [`Coordinates`].
     ///
@@ -223,7 +223,7 @@ impl<T: Into<CoordinateType>> DivAssign<T> for Coordinates {
 
 #[cfg(test)]
 mod coordinate_test {
-    use crate::coordinates::{CoordinateType, coordinates::Coordinates};
+    use crate::coord::{CoordinateType, coordinates::Coordinates};
 
     #[test]
     fn latitude() {
