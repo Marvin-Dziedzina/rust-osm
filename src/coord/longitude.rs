@@ -12,9 +12,7 @@ pub const LONGITUDE_RANGE: RangeInclusive<CoordinateType> = -180.0..=180.0;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Longitude {
-    longitude: CoordinateType,
-}
+pub struct Longitude(CoordinateType);
 
 impl Longitude {
     /// Constructs a new [`Longitude`].
@@ -24,7 +22,7 @@ impl Longitude {
     /// Returns a [`coordinates::error::Error::OutOfRange`] if the longitude provided is outside of the [`LONGITUDE_RANGE`].
     pub fn new(longitude: CoordinateType) -> Result<Self, coord::error::Error> {
         if Self::is_valid(longitude) {
-            Ok(Self { longitude })
+            Ok(Self(longitude))
         } else {
             Err(coord::error::Error::OutOfRange((
                 longitude,
@@ -35,14 +33,12 @@ impl Longitude {
 
     /// Construct a new [`Longitude`]. longitude should be in [`LONGITUDE_RANGE`].
     pub const fn from_unchecked(longitude: CoordinateType) -> Self {
-        Self { longitude }
+        Self(longitude)
     }
 
     /// Construct a new [`Longitude`] and wrap longitude to the [`LONGITUDE_RANGE`].
     pub fn from_wrapped(longitude: CoordinateType) -> Self {
-        Self {
-            longitude: Self::normalized(longitude),
-        }
+        Self(Self::normalized(longitude))
     }
 
     /// Check if the supplied longitude is in the [`LONGITUDE_RANGE`].
@@ -52,7 +48,7 @@ impl Longitude {
 
     /// Get the internal longitude.
     pub const fn value(&self) -> CoordinateType {
-        self.longitude
+        self.0
     }
 }
 
@@ -63,10 +59,10 @@ impl Normalized for Longitude {
 
 impl Display for Longitude {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.longitude >= 0.0 {
-            write!(f, "{} °E", self.longitude)
+        if self.0 >= 0.0 {
+            write!(f, "{} °E", self.0)
         } else {
-            write!(f, "{} °W", self.longitude.abs())
+            write!(f, "{} °W", self.0.abs())
         }
     }
 }
@@ -75,16 +71,16 @@ impl Eq for Longitude {}
 
 impl Ord for Longitude {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.longitude.total_cmp(&other.longitude)
+        self.0.total_cmp(&other.0)
     }
 }
 
 impl Hash for Longitude {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        let bits = if self.longitude == 0.0 {
+        let bits = if self.0 == 0.0 {
             0.0f64.to_bits()
         } else {
-            self.longitude.to_bits()
+            self.0.to_bits()
         };
 
         bits.hash(state);
@@ -101,7 +97,7 @@ impl TryFrom<CoordinateType> for Longitude {
 
 impl From<Longitude> for CoordinateType {
     fn from(longitude: Longitude) -> Self {
-        longitude.longitude
+        longitude.0
     }
 }
 
@@ -109,13 +105,13 @@ impl<T: Into<CoordinateType>> Add<T> for Longitude {
     type Output = Self;
 
     fn add(self, rhs: T) -> Self::Output {
-        Self::from_wrapped(self.longitude + rhs.into())
+        Self::from_wrapped(self.0 + rhs.into())
     }
 }
 
 impl<T: Into<CoordinateType>> AddAssign<T> for Longitude {
     fn add_assign(&mut self, rhs: T) {
-        *self = Self::from_wrapped(self.longitude + rhs.into());
+        *self = Self::from_wrapped(self.0 + rhs.into());
     }
 }
 
@@ -123,13 +119,13 @@ impl<T: Into<CoordinateType>> Sub<T> for Longitude {
     type Output = Self;
 
     fn sub(self, rhs: T) -> Self::Output {
-        Self::from_wrapped(self.longitude - rhs.into())
+        Self::from_wrapped(self.0 - rhs.into())
     }
 }
 
 impl<T: Into<CoordinateType>> SubAssign<T> for Longitude {
     fn sub_assign(&mut self, rhs: T) {
-        *self = Self::from_wrapped(self.longitude - rhs.into());
+        *self = Self::from_wrapped(self.0 - rhs.into());
     }
 }
 
@@ -137,13 +133,13 @@ impl<T: Into<CoordinateType>> Mul<T> for Longitude {
     type Output = Self;
 
     fn mul(self, rhs: T) -> Self::Output {
-        Self::from_wrapped(self.longitude * rhs.into())
+        Self::from_wrapped(self.0 * rhs.into())
     }
 }
 
 impl<T: Into<CoordinateType>> MulAssign<T> for Longitude {
     fn mul_assign(&mut self, rhs: T) {
-        *self = Self::from_wrapped(self.longitude * rhs.into());
+        *self = Self::from_wrapped(self.0 * rhs.into());
     }
 }
 
@@ -151,13 +147,13 @@ impl<T: Into<CoordinateType>> Div<T> for Longitude {
     type Output = Self;
 
     fn div(self, rhs: T) -> Self::Output {
-        Self::from_wrapped(self.longitude / rhs.into())
+        Self::from_wrapped(self.0 / rhs.into())
     }
 }
 
 impl<T: Into<CoordinateType>> DivAssign<T> for Longitude {
     fn div_assign(&mut self, rhs: T) {
-        *self = Self::from_wrapped(self.longitude / rhs.into());
+        *self = Self::from_wrapped(self.0 / rhs.into());
     }
 }
 
@@ -165,7 +161,7 @@ impl Neg for Longitude {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        Self::from_wrapped(-self.longitude)
+        Self::from_wrapped(-self.0)
     }
 }
 
